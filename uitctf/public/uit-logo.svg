@@ -1,0 +1,8 @@
+<svg width="220" height="56" viewBox="0 0 220 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="1" width="218" height="54" rx="14" fill="#0B0B0B" stroke="#2A2A2A" stroke-width="2"/>
+  <path d="M26 38V18H32V33H42V38H26Z" fill="#FFFFFF"/>
+  <path d="M52 38V18H58V38H52Z" fill="#FFFFFF"/>
+  <path d="M69 38V23H63V18H81V23H75V38H69Z" fill="#FFFFFF"/>
+  <path d="M92 38V18H98V32H109V38H92Z" fill="#FFFFFF"/>
+  <text x="122" y="36" fill="#FFFFFF" font-size="20" font-family="Arial" font-weight="700">UITctf</text>
+</svg>
