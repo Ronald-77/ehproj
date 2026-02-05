@@ -33,7 +33,7 @@ export default function EventNavbar() {
           </span>
           <div className="text-xl font-semibold tracking-tight">
             <span className="text-[#077c8a]">UIT</span>
-            <span className="text-white/90">ctf</span>
+            <span className="text-white/90">CTF</span>
           </div>
         </a>
 
