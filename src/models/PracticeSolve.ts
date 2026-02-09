@@ -9,13 +9,13 @@ export type IPracticeSolve = {
 
 const PracticeSolveSchema = new Schema<IPracticeSolve>(
   {
-    userId: { type: Schema.Types.ObjectId, required: true, index: true, ref: "User" },
-    challengeId: { type: Schema.Types.ObjectId, required: true, index: true, ref: "Challenge" },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    challengeId: { type: Schema.Types.ObjectId, ref: "Challenge", required: true, index: true },
   },
   { timestamps: true }
 );
 
-// ✅ user can practice-solve a challenge once
+// ✅ user can’t “practice solve” same challenge multiple times
 PracticeSolveSchema.index({ userId: 1, challengeId: 1 }, { unique: true });
 
 export const PracticeSolve =

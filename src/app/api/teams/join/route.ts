@@ -1,44 +1,62 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import mongoose from "mongoose";
+
 import { connectMongo } from "@/lib/mongodb";
-import { verifySession } from "@/lib/jwt";
+import { getSession } from "@/lib/session";
+import { getActiveOrNextEvent } from "@/lib/eventContext";
 import { Team } from "@/models/Team";
-import { User } from "@/models/User";
 
 export async function POST(req: Request) {
-  const ck = await cookies();
-  const token = ck.get("ctf_token")?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const session = verifySession(token);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json().catch(() => ({}));
-  const inviteToken = String(body?.inviteToken ?? "").trim();
-  if (inviteToken.length < 10) {
-    return NextResponse.json({ error: "Invalid invitation token." }, { status: 400 });
-  }
-
   await connectMongo();
 
-  const u = await User.findById(session.id).select("_id username");
-  if (!u) return NextResponse.json({ error: "User not found" }, { status: 404 });
-
-  // already in a team?
-  const already = await Team.findOne({ "members.userId": session.id }).select("_id");
-  if (already) return NextResponse.json({ error: "You are already in a team." }, { status: 409 });
-
-  const team = await Team.findOne({ inviteToken });
-  if (!team) return NextResponse.json({ error: "Team not found for this token." }, { status: 404 });
-
-  // add member if not present
-  const exists = team.members.some((m: any) => m.userId === session.id);
-  if (!exists) {
-    team.members.push({ userId: session.id, username: u.username });
-    await team.save();
+  const session = await getSession(req);
+  if (!session?.id) {
+    return NextResponse.json({ error: "Not logged in." }, { status: 401 });
   }
 
-  return NextResponse.json({ ok: true, teamId: team._id.toString(), teamName: team.name });
+  const body = await req.json().catch(() => ({}));
+  const inviteToken = String(body.inviteToken ?? "").trim().toUpperCase();
+
+  if (!inviteToken) {
+    return NextResponse.json({ error: "Invite token is required." }, { status: 400 });
+  }
+
+  const { event, mode } = await getActiveOrNextEvent();
+  if (!event) {
+    return NextResponse.json(
+      { error: "No event exists. Admin must create an event first." },
+      { status: 409 }
+    );
+  }
+
+  const userId = new mongoose.Types.ObjectId(String(session.id));
+
+  const already = await Team.findOne({
+    eventId: event._id,
+    members: userId,
+  }).select("_id");
+
+  if (already) {
+    return NextResponse.json({ error: "You already have a team for this event." }, { status: 409 });
+  }
+
+  const team = await Team.findOne({
+    eventId: event._id,
+    inviteToken,
+  }).select("_id name inviteToken");
+
+  if (!team) {
+    return NextResponse.json({ error: "Invalid invite token." }, { status: 404 });
+  }
+
+  await Team.updateOne({ _id: team._id }, { $addToSet: { members: userId } });
+
+  return NextResponse.json({
+    ok: true,
+    mode,
+    event: { id: String(event._id) },
+    team: { id: String(team._id), name: team.name, inviteToken: team.inviteToken },
+  });
 }

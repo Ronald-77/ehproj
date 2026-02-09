@@ -6,8 +6,8 @@ import bcrypt from "bcryptjs";
 
 import { connectMongo } from "@/lib/mongodb";
 import { verifySession } from "@/lib/jwt";
-import { Challenge } from "@/models/Challenge";
 import { User } from "@/models/User";
+import { Challenge } from "@/models/Challenge";
 import { PracticeSolve } from "@/models/PracticeSolve";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -32,23 +32,30 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const ch = await Challenge.findById(id).select("_id flagHash endsAt");
   if (!ch) return NextResponse.json({ error: "Challenge not found" }, { status: 404 });
 
-  // ✅ practice only after it ends
+  // ✅ practice allowed only AFTER end time
   const now = new Date();
   if (now <= ch.endsAt) {
     return NextResponse.json({ error: "This challenge is still in the event." }, { status: 403 });
   }
 
-  // ✅ already solved in practice?
-  const already = await PracticeSolve.findOne({ userId: user._id, challengeId: ch._id }).select("_id");
+  // already solved in practice?
+  const already = await PracticeSolve.findOne({
+    userId: user._id,
+    challengeId: ch._id,
+  }).select("_id");
+
   if (already) return NextResponse.json({ correct: true, alreadySolved: true });
 
+  // check flag
   const ok = await bcrypt.compare(flag, ch.flagHash);
   if (!ok) return NextResponse.json({ correct: false });
 
   try {
     await PracticeSolve.create({ userId: user._id, challengeId: ch._id });
-  } catch {
-    return NextResponse.json({ correct: true, alreadySolved: true });
+  } catch (e: any) {
+    // duplicate key / race
+    if (e?.code === 11000) return NextResponse.json({ correct: true, alreadySolved: true });
+    return NextResponse.json({ error: "Failed to save practice solve." }, { status: 500 });
   }
 
   return NextResponse.json({ correct: true, alreadySolved: false });

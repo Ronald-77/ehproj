@@ -1,27 +1,37 @@
-import mongoose, { Schema, models } from "mongoose";
+import mongoose, { Schema, models, model } from "mongoose";
 
-const MemberSchema = new Schema(
+export type ITeam = {
+  eventId: mongoose.Types.ObjectId;
+  name: string;
+
+  leaderId: mongoose.Types.ObjectId; // team creator
+  inviteToken: string;
+
+  passwordHash: string;
+
+  members: mongoose.Types.ObjectId[]; // ✅ store only user ObjectIds
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+const TeamSchema = new Schema<ITeam>(
   {
-    userId: { type: String, required: true },
-    username: { type: String, required: true },
-  },
-  { _id: false }
-);
+    eventId: { type: Schema.Types.ObjectId, ref: "Event", required: true, index: true },
 
-const TeamSchema = new Schema(
-  {
-    name: { type: String, required: true, trim: true, unique: true },
-    ownerId: { type: String, required: true },
+    name: { type: String, required: true, trim: true },
 
-    // 🔐 team password (hashed)
+    leaderId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+
+    inviteToken: { type: String, required: true, unique: true, index: true },
+
     passwordHash: { type: String, required: true },
 
-    // 🎟 invitation token to join
-    inviteToken: { type: String, required: true, unique: true },
-
-    members: { type: [MemberSchema], default: [] },
+    members: [{ type: Schema.Types.ObjectId, ref: "User", required: true }],
   },
   { timestamps: true }
 );
 
-export const Team = models.Team || mongoose.model("Team", TeamSchema);
+// ✅ one team name per event
+TeamSchema.index({ eventId: 1, name: 1 }, { unique: true });
+
+export const Team = models.Team || model<ITeam>("Team", TeamSchema);

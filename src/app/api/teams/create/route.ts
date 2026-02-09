@@ -1,68 +1,77 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
-import { connectMongo } from "@/lib/mongodb";
-import { verifySession } from "@/lib/jwt";
-import { Team } from "@/models/Team";
-import { User } from "@/models/User";
+import mongoose from "mongoose";
 
-function makeToken() {
-  return crypto.randomBytes(18).toString("hex"); // 36 chars
+import { connectMongo } from "@/lib/mongodb";
+import { getSession } from "@/lib/session";
+import { getActiveOrNextEvent } from "@/lib/eventContext";
+import { Team } from "@/models/Team";
+
+function makeInviteToken() {
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
 }
 
 export async function POST(req: Request) {
-  const ck = await cookies();
-  const token = ck.get("ctf_token")?.value;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const session = verifySession(token);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json().catch(() => ({}));
-  const name = String(body?.name ?? "").trim();
-  const password = String(body?.password ?? "").trim();
-
-  if (name.length < 3) {
-    return NextResponse.json({ error: "Team name must be at least 3 chars." }, { status: 400 });
-  }
-  if (password.length < 6) {
-    return NextResponse.json({ error: "Team password must be at least 6 chars." }, { status: 400 });
-  }
-
   await connectMongo();
 
-  // user exists?
-  const u = await User.findById(session.id).select("_id username");
-  if (!u) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const session = await getSession(req);
+  if (!session?.id) {
+    return NextResponse.json({ error: "Not logged in." }, { status: 401 });
+  }
 
-  // user already in a team?
-  const existingTeam = await Team.findOne({ "members.userId": session.id }).select("_id");
-  if (existingTeam) return NextResponse.json({ error: "You are already in a team." }, { status: 409 });
+  const body = await req.json().catch(() => ({}));
+  const name = String(body.name ?? "").trim();
+  const password = String(body.password ?? "").trim();
 
-  // unique invite token
-  let inviteToken = makeToken();
-  for (let i = 0; i < 5; i++) {
-    const used = await Team.findOne({ inviteToken }).select("_id");
-    if (!used) break;
-    inviteToken = makeToken();
+  if (!name || name.length < 2 || name.length > 40) {
+    return NextResponse.json({ error: "Team name must be 2–40 characters." }, { status: 400 });
+  }
+  if (!password || password.length < 4 || password.length > 72) {
+    return NextResponse.json({ error: "Password must be 4–72 characters." }, { status: 400 });
+  }
+
+  const { event, mode } = await getActiveOrNextEvent();
+  if (!event) {
+    return NextResponse.json(
+      { error: "No event exists. Admin must create an event first." },
+      { status: 409 }
+    );
+  }
+
+  const userId = new mongoose.Types.ObjectId(String(session.id));
+
+  // ✅ prevent joining/creating multiple teams for same event
+  const existing = await Team.findOne({
+    eventId: event._id,
+    members: userId,
+  }).select("_id");
+
+  if (existing) {
+    return NextResponse.json({ error: "You already have a team for this event." }, { status: 409 });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
+  const inviteToken = makeInviteToken();
 
   const created = await Team.create({
+    eventId: event._id,
     name,
-    ownerId: session.id,
     passwordHash,
     inviteToken,
-    members: [{ userId: session.id, username: u.username }],
+    leaderId: userId,
+    members: [userId], // ✅ ObjectId[]
   });
 
   return NextResponse.json({
     ok: true,
-    teamId: created._id.toString(),
-    inviteToken,
+    mode, // active | upcoming
+    event: { id: String(event._id) },
+    team: {
+      id: String(created._id),
+      name: created.name,
+      inviteToken: created.inviteToken,
+    },
   });
 }

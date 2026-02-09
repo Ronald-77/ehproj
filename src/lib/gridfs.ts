@@ -1,12 +1,13 @@
 import mongoose from "mongoose";
-import { GridFSBucket, type Db } from "mongodb";
+import { GridFSBucket } from "mongodb";
 
 let bucket: GridFSBucket | null = null;
 
 export function getGridFSBucket() {
-  const db = (mongoose.connection.db as Db | undefined);
-  if (!db) throw new Error("MongoDB not connected");
+  const db = mongoose.connection.db;
+  if (!db) throw new Error("MongoDB not connected yet.");
 
+  // cache bucket
   if (!bucket) {
     bucket = new GridFSBucket(db, { bucketName: "challengeFiles" });
   }

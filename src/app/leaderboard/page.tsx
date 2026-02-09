@@ -5,97 +5,76 @@ import Navbar from "../components/Navbar";
 import { FaTrophy, FaMedal, FaUser, FaUsers } from "react-icons/fa";
 
 type IndividualRow = {
-  rank: number;
   userId: string;
   username: string;
+  team: string;
   points: number;
   solves: number;
 };
 
 type TeamRow = {
-  rank: number;
   teamId: string;
-  teamName: string;
+  name: string;
+  members: number;
   points: number;
   solves: number;
 };
 
-type ApiResponse = {
-  individuals: IndividualRow[];
-  teams: TeamRow[];
-};
-
 export default function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<"individual" | "team">("individual");
-
-  const [individuals, setIndividuals] = useState<IndividualRow[]>([]);
-  const [teams, setTeams] = useState<TeamRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function load() {
-    setLoading(true);
-    setErr(null);
-
-    try {
-      const res = await fetch("/api/leaderboard", { cache: "no-store" });
-
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = { error: text || "Non-JSON response" };
-      }
-
-      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-
-      setIndividuals(Array.isArray(data.individuals) ? data.individuals : []);
-      setTeams(Array.isArray(data.teams) ? data.teams : []);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to load leaderboard");
-      setIndividuals([]);
-      setTeams([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [err, setErr] = useState("");
+  const [individual, setIndividual] = useState<IndividualRow[]>([]);
+  const [team, setTeam] = useState<TeamRow[]>([]);
 
   useEffect(() => {
-    load();
+    (async () => {
+      try {
+        setErr("");
+        setLoading(true);
+        const res = await fetch("/api/leaderboard", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Failed to load leaderboard");
+
+        setIndividual(Array.isArray(data.individual) ? data.individual : []);
+        setTeam(Array.isArray(data.team) ? data.team : []);
+      } catch (e: any) {
+        setErr(e?.message || "Failed to load leaderboard");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const rows = useMemo(() => {
-    return activeTab === "individual" ? individuals : teams;
-  }, [activeTab, individuals, teams]);
+    if (activeTab === "individual") {
+      return individual.map((r, i) => ({
+        rank: i + 1,
+        username: r.username,
+        team: r.team,
+        points: r.points,
+        solves: r.solves,
+      }));
+    }
+    return team.map((t, i) => ({
+      rank: i + 1,
+      name: t.name,
+      members: t.members,
+      points: t.points,
+      solves: t.solves,
+    }));
+  }, [activeTab, individual, team]);
 
   return (
     <main className="min-h-screen bg-black text-white">
       <Navbar />
 
       <div className="mx-auto max-w-6xl px-6 py-12">
-        {/* Header */}
         <div className="mb-8">
-          <h1 className="mb-2 text-4xl font-bold tracking-tight text-[#077c8a]">
-            Leaderboard
-          </h1>
+          <h1 className="text-4xl font-bold tracking-tight text-[#077c8a] mb-2">Leaderboard</h1>
           <p className="text-white/60">Competition rankings and statistics</p>
         </div>
 
-        {/* Loading / Error */}
-        {loading && (
-          <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-sm text-white/70">
-            Loading leaderboard...
-          </div>
-        )}
-
-        {err && (
-          <div className="mb-8 rounded-2xl border border-red-500/30 bg-red-500/10 px-6 py-4 text-sm text-red-200">
-            {err}
-          </div>
-        )}
-
-        {/* Toggle Switch */}
         <div className="mb-8 flex">
           <div className="relative flex rounded-full bg-white/5 p-1 ring-1 ring-white/10">
             <button
@@ -109,7 +88,6 @@ export default function LeaderboardPage() {
               <FaUser className={activeTab === "individual" ? "text-white" : "text-white/40"} />
               Individual
             </button>
-
             <button
               onClick={() => setActiveTab("team")}
               className={`relative z-10 flex w-40 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-all duration-300 ${
@@ -124,88 +102,87 @@ export default function LeaderboardPage() {
           </div>
         </div>
 
-        {/* Rankings Card */}
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a]">
-          {/* Card Header */}
           <div className="border-b border-white/5 bg-white/5 px-6 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-medium text-white">
-                {activeTab === "individual" ? "Individual Rankings" : "Team Rankings"}
-              </h2>
+            <h2 className="text-lg font-medium text-white">
+              {activeTab === "individual" ? "Individual Rankings" : "Team Rankings"}
+            </h2>
+          </div>
 
-              <button
-                onClick={load}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white transition"
-              >
-                Refresh
-              </button>
+          {loading ? (
+            <div className="px-6 py-10 text-white/60">Loading…</div>
+          ) : err ? (
+            <div className="px-6 py-10 text-red-400">{err}</div>
+          ) : rows.length === 0 ? (
+            <div className="px-6 py-10 text-white/60">No scores yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/5 text-xs uppercase tracking-wider text-white/40">
+                    <th className="px-6 py-4 font-medium">Rank</th>
+                    <th className="px-6 py-4 font-medium">
+                      {activeTab === "individual" ? "Username" : "Team Name"}
+                    </th>
+                    {activeTab === "individual" && <th className="px-6 py-4 font-medium">Team</th>}
+                    {activeTab === "team" && <th className="px-6 py-4 font-medium">Members</th>}
+                    <th className="px-6 py-4 font-medium text-right">Points</th>
+                    <th className="px-6 py-4 font-medium text-right">Solves</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-white/5 text-sm">
+                  {rows.map((item: any) => (
+                    <tr key={item.rank} className="group transition-colors hover:bg-white/[0.02]">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {item.rank === 1 && <FaTrophy className="text-yellow-500 text-lg" />}
+                          {item.rank === 2 && <FaMedal className="text-gray-300 text-lg" />}
+                          {item.rank === 3 && <FaMedal className="text-amber-600 text-lg" />}
+                          <span
+                            className={`font-mono font-bold ${
+                              item.rank <= 3 ? "text-white" : "text-white/60"
+                            }`}
+                          >
+                            {item.rank}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4 font-medium text-white">
+                        {"username" in item ? item.username : item.name}
+                      </td>
+
+                      {"username" in item && (
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-400">
+                            {item.team || "-"}
+                          </span>
+                        </td>
+                      )}
+
+                      {"members" in item && (
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2 text-white/60">
+                            <FaUser className="text-xs" />
+                            {item.members}
+                          </div>
+                        </td>
+                      )}
+
+                      <td className="px-6 py-4 text-right font-mono font-bold text-[#077c8a]">
+                        {item.points}
+                      </td>
+
+                      <td className="px-6 py-4 text-right font-mono text-white/60">
+                        {item.solves}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-white/5 text-xs uppercase tracking-wider text-white/40">
-                  <th className="px-6 py-4 font-medium">Rank</th>
-                  <th className="px-6 py-4 font-medium">
-                    {activeTab === "individual" ? "Username" : "Team Name"}
-                  </th>
-                  <th className="px-6 py-4 font-medium text-right">Points</th>
-                  <th className="px-6 py-4 font-medium text-right">Solves</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-white/5 text-sm">
-                {rows.map((item: any) => (
-                  <tr key={item.rank + (item.userId || item.teamId)} className="group transition-colors hover:bg-white/[0.02]">
-                    {/* Rank */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        {item.rank === 1 && <FaTrophy className="text-yellow-500 text-lg" />}
-                        {item.rank === 2 && <FaMedal className="text-gray-300 text-lg" />}
-                        {item.rank === 3 && <FaMedal className="text-amber-600 text-lg" />}
-                        <span
-                          className={`font-mono font-bold ${
-                            item.rank <= 3 ? "text-white" : "text-white/60"
-                          }`}
-                        >
-                          {item.rank}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Username / Team Name */}
-                    <td className="px-6 py-4 font-medium text-white">
-                      {activeTab === "individual" ? item.username : item.teamName}
-                    </td>
-
-                    {/* Points */}
-                    <td className="px-6 py-4 text-right font-mono font-bold text-[#077c8a]">
-                      {item.points}
-                    </td>
-
-                    {/* Solves */}
-                    <td className="px-6 py-4 text-right font-mono text-white/60">
-                      {item.solves}
-                    </td>
-                  </tr>
-                ))}
-
-                {!loading && rows.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-white/60">
-                      No leaderboard data yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="mt-6 text-sm text-white/50">
-          * Leaderboard totals are calculated from <span className="text-white/70">event solves only</span>. Practice solves do not count.
+          )}
         </div>
       </div>
     </main>

@@ -2,119 +2,83 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FaFlag, FaBookOpen, FaTrophy, FaArrowRight, FaUserCircle } from "react-icons/fa";
+import { FaFlag, FaBookOpen } from "react-icons/fa";
 
-const FlagIcon = FaFlag;
-
-type MeUser = {
-  id: string;
-  username: string;
-  email: string;
-  avatar?: string;
-};
+type Me = { user: { id: string; username: string; email: string } | null };
 
 export default function Navbar() {
-  const [me, setMe] = useState<MeUser | null>(null);
+  const [me, setMe] = useState<Me["user"]>(null);
 
-  async function loadMe() {
-    const res = await fetch("/api/auth/me", { cache: "no-store" });
-    const data = await res.json();
-    setMe(data.user || null);
-  }
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        const data: Me = await res.json();
+        setMe(data.user || null);
+      } catch {
+        setMe(null);
+      }
+    })();
+  }, []);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    setMe(null);
-    window.location.href = "/";
+    window.location.href = "/login";
   }
-
-  useEffect(() => {
-    loadMe();
-  }, []);
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-black/70 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        {/* Left: Logo */}
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10">
-              <FlagIcon className="h-6 w-6 text-[#077c8a]" />
-            </span>
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+        {/* ✅ UITCTF is link to home */}
+        <Link href="/" className="flex items-center gap-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10">
+            <FaFlag className="h-5 w-5 text-[#077c8a]" />
+          </span>
+          <span className="text-lg font-bold tracking-tight">
+            <span className="text-[#077c8a]">UIT</span>
+            <span className="text-white">CTF</span>
+          </span>
+        </Link>
 
-            <span className="text-lg font-bold tracking-tight">
-              <span className="text-[#077c8a]">UIT</span>
-              <span className="text-white">CTF</span>
-            </span>
+        <nav className="hidden items-center gap-8 md:flex">
+          <Link href="/practice" className="inline-flex items-center gap-2 text-white/75 hover:text-white transition">
+            <FaBookOpen className="text-white/40" />
+            Practice
           </Link>
-        </div>
 
-        {/* Middle nav */}
-        <nav className="hidden items-center md:flex">
-          <div className="flex items-center gap-12 text-sm font-medium">
-            <a href="/practice" className="flex items-center gap-2 text-white/80 hover:text-white transition">
-              <FaBookOpen className="text-white/60" />
-              Practice
-            </a>
-
-            <a href="/leaderboard" className="flex items-center gap-2 text-white/80 hover:text-white transition">
-              <FaTrophy className="text-white/60" />
-              Leaderboard
-            </a>
-
-            <a
-              href="/event"
-              className="group flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-white/90 hover:bg-white/10 transition"
-            >
-              Go to Event
-              <FaArrowRight className="transition group-hover:translate-x-0.5" style={{ color: "#1493a0" }} />
-            </a>
-          </div>
+          <Link
+            href="/event"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/85 hover:bg-white/10 transition"
+          >
+            Go to Event <span className="text-[#077c8a]">→</span>
+          </Link>
         </nav>
 
-        {/* Right auth */}
         <div className="flex items-center gap-3">
-          {!me ? (
+          {me ? (
             <>
-              <a
-                href="/login"
-                className="rounded-xl px-4 py-2 text-sm font-semibold text-white/80 hover:text-white hover:bg-white/5 transition"
+              <Link
+                href="/profile"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 hover:bg-white/10 transition"
               >
-                Login
-              </a>
+                <span className="max-w-[140px] truncate">{me.username}</span>
+              </Link>
 
-              <a
-                href="/signup"
-                className="rounded-xl bg-[#077c8a] px-5 py-2 text-sm font-semibold text-white hover:opacity-90 transition"
-              >
-                Sign Up
-              </a>
+              <button onClick={logout} className="text-sm font-semibold text-white/70 hover:text-white transition">
+                Logout
+              </button>
             </>
           ) : (
             <>
-              <a
-                href="/profile"
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90 hover:bg-white/10 transition"
+              <Link href="/login" className="text-sm font-semibold text-white/70 hover:text-white">
+                Login
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-xl bg-[#077c8a] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition"
               >
-                {me.avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={me.avatar}
-                    alt="avatar"
-                    className="h-7 w-7 rounded-full object-cover ring-1 ring-white/10"
-                  />
-                ) : (
-                  <FaUserCircle className="text-lg text-[#077c8a]" />
-                )}
-                {me.username}
-              </a>
-
-              <button
-                onClick={logout}
-                className="rounded-xl px-4 py-2 text-sm font-semibold text-white/70 hover:text-white hover:bg-white/5 transition"
-              >
-                Logout
-              </button>
+                Sign Up
+              </Link>
             </>
           )}
         </div>

@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import EventNavbar from "../components/EventNavbar";
 import { useRequireTeam } from "../components/useRequireTeam";
+import { FaTrophy, FaMedal, FaUser, FaUsers } from "react-icons/fa";
 
 type IndividualRow = {
   rank: number;
-  userId: string;
   username: string;
   team: string;
   points: number;
@@ -15,179 +15,194 @@ type IndividualRow = {
 
 type TeamRow = {
   rank: number;
-  teamId: string;
-  team: string;
+  name: string;
+  members: number;
   points: number;
   solves: number;
-  members: number;
 };
 
-function rankIcon(rank: number) {
-  if (rank === 1) return "🏆";
-  if (rank === 2) return "🥈";
-  if (rank === 3) return "🥉";
-  return String(rank);
-}
+type ScoreboardResp = {
+  active: boolean;
+  event: null | { id: string; name: string; startsAt: string; endsAt: string };
+  individual: IndividualRow[];
+  teams: TeamRow[];
+};
 
 export default function ScoreboardPage() {
-  const { loading } = useRequireTeam();
-  const [tab, setTab] = useState<"individual" | "team">("individual");
+  const { loading: guardLoading } = useRequireTeam();
 
-  const [individual, setIndividual] = useState<IndividualRow[]>([]);
-  const [teams, setTeams] = useState<TeamRow[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function load() {
-    setErr(null);
-    try {
-      const res = await fetch("/api/scoreboard", { cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Failed to load scoreboard");
-
-      setIndividual(data.individual || []);
-      setTeams(data.teams || []);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to load scoreboard");
-    }
-  }
+  const [activeTab, setActiveTab] = useState<"individual" | "team">("individual");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [data, setData] = useState<ScoreboardResp>({
+    active: false,
+    event: null,
+    individual: [],
+    teams: [],
+  });
 
   useEffect(() => {
-    if (!loading) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+    (async () => {
+      setLoading(true);
+      setErr("");
+      try {
+        const res = await fetch("/api/scoreboard", { cache: "no-store" });
+        const j = (await res.json().catch(() => ({}))) as Partial<ScoreboardResp>;
+        if (!res.ok) throw new Error((j as any)?.error || "Failed to load scoreboard");
 
-  const rows = useMemo(() => (tab === "individual" ? individual : teams), [tab, individual, teams]);
+        setData({
+          active: Boolean(j.active),
+          event: (j.event as any) ?? null,
+          individual: Array.isArray(j.individual) ? j.individual : [],
+          teams: Array.isArray(j.teams) ? j.teams : [],
+        });
+      } catch (e: any) {
+        setErr(e?.message || "Failed to load scoreboard");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  if (loading) return null;
+  const rows = useMemo(() => {
+    return activeTab === "individual" ? data.individual : data.teams;
+  }, [activeTab, data]);
+
+  if (guardLoading) return null;
 
   return (
     <main className="min-h-screen bg-black text-white">
       <EventNavbar />
 
-      <section className="mx-auto max-w-6xl px-6 py-12">
-        
-        {err && (
-          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-            {err}
-          </div>
-        )}
+      <div className="mx-auto max-w-6xl px-6 py-12">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold tracking-tight text-[#077c8a] mb-2">
+            Scoreboard
+          </h1>
+          <p className="text-white/60">
+            {data.active && data.event ? `Event: ${data.event.name}` : "No active event right now"}
+          </p>
+        </div>
 
-        {/* Tabs */}
-        <div className="mt-8 w-full max-w-xl rounded-3xl border border-white/10 bg-white/[0.04] p-2">
-          <div className="grid grid-cols-2 gap-2">
+        {/* Toggle */}
+        <div className="mb-8 flex">
+          <div className="relative flex rounded-full bg-white/5 p-1 ring-1 ring-white/10">
             <button
-              onClick={() => setTab("individual")}
-              className={[
-                "flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
-                tab === "individual" ? "bg-[#077c8a] text-white" : "text-white/70 hover:bg-white/5",
-              ].join(" ")}
+              onClick={() => setActiveTab("individual")}
+              className={`relative z-10 flex w-44 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-all duration-300 ${
+                activeTab === "individual"
+                  ? "bg-[#077c8a] text-white shadow-lg"
+                  : "text-white/60 hover:text-white"
+              }`}
             >
-              <span className="text-base">👤</span> Individual
+              <FaUser className={activeTab === "individual" ? "text-white" : "text-white/40"} />
+              Individual
             </button>
 
             <button
-              onClick={() => setTab("team")}
-              className={[
-                "flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition",
-                tab === "team" ? "bg-[#077c8a] text-white" : "text-white/70 hover:bg-white/5",
-              ].join(" ")}
+              onClick={() => setActiveTab("team")}
+              className={`relative z-10 flex w-44 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-all duration-300 ${
+                activeTab === "team"
+                  ? "bg-[#077c8a] text-white shadow-lg"
+                  : "text-white/60 hover:text-white"
+              }`}
             >
-              <span className="text-base">👥</span> Team
+              <FaUsers className={activeTab === "team" ? "text-white" : "text-white/40"} />
+              Team
             </button>
           </div>
         </div>
 
-        {/* Table card */}
-        <div className="mt-10 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]">
-          <div className="border-b border-white/10 px-8 py-6">
-            <h2 className="text-2xl font-bold text-white">
-              {tab === "individual" ? "Individual Rankings" : "Team Rankings"}
+        {/* Card */}
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a]">
+          <div className="border-b border-white/5 bg-white/5 px-6 py-4">
+            <h2 className="text-lg font-medium text-white">
+              {activeTab === "individual" ? "Individual Rankings" : "Team Rankings"}
             </h2>
           </div>
 
-          {/* headers */}
-          {tab === "individual" ? (
-            <div className="grid grid-cols-12 gap-4 border-b border-white/10 px-8 py-4 text-xs font-semibold tracking-widest text-white/45">
-              <div className="col-span-2">RANK</div>
-              <div className="col-span-4">USERNAME</div>
-              <div className="col-span-3">TEAM</div>
-              <div className="col-span-2 text-right">POINTS</div>
-              <div className="col-span-1 text-right">SOLVES</div>
-            </div>
+          {loading ? (
+            <div className="px-6 py-10 text-white/60">Loading…</div>
+          ) : err ? (
+            <div className="px-6 py-10 text-red-400">{err}</div>
+          ) : !data.active ? (
+            <div className="px-6 py-10 text-white/60">No active event scoreboard yet.</div>
+          ) : rows.length === 0 ? (
+            <div className="px-6 py-10 text-white/60">No solves yet.</div>
           ) : (
-            <div className="grid grid-cols-12 gap-4 border-b border-white/10 px-8 py-4 text-xs font-semibold tracking-widest text-white/45">
-              <div className="col-span-2">RANK</div>
-              <div className="col-span-5">TEAM</div>
-              <div className="col-span-2 text-right">MEMBERS</div>
-              <div className="col-span-2 text-right">POINTS</div>
-              <div className="col-span-1 text-right">SOLVES</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/5 text-xs uppercase tracking-wider text-white/40">
+                    <th className="px-6 py-4 font-medium">Rank</th>
+                    <th className="px-6 py-4 font-medium">
+                      {activeTab === "individual" ? "Username" : "Team Name"}
+                    </th>
+                    {activeTab === "individual" ? (
+                      <th className="px-6 py-4 font-medium">Team</th>
+                    ) : (
+                      <th className="px-6 py-4 font-medium">Members</th>
+                    )}
+                    <th className="px-6 py-4 font-medium text-right">Points</th>
+                    <th className="px-6 py-4 font-medium text-right">Solves</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-white/5 text-sm">
+                  {rows.map((item: any) => (
+                    <tr
+                      key={`${activeTab}-${item.rank}-${item.username ?? item.name}`}
+                      className="group transition-colors hover:bg-white/[0.02]"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {item.rank === 1 && <FaTrophy className="text-yellow-500 text-lg" />}
+                          {item.rank === 2 && <FaMedal className="text-gray-300 text-lg" />}
+                          {item.rank === 3 && <FaMedal className="text-amber-600 text-lg" />}
+                          <span
+                            className={`font-mono font-bold ${
+                              item.rank <= 3 ? "text-white" : "text-white/60"
+                            }`}
+                          >
+                            {item.rank}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4 font-medium text-white">
+                        {activeTab === "individual" ? item.username : item.name}
+                      </td>
+
+                      {activeTab === "individual" ? (
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-400">
+                            {item.team || "-"}
+                          </span>
+                        </td>
+                      ) : (
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2 text-white/60">
+                            <FaUser className="text-xs" />
+                            {item.members ?? 0}
+                          </div>
+                        </td>
+                      )}
+
+                      <td className="px-6 py-4 text-right font-mono font-bold text-[#077c8a]">
+                        {item.points ?? 0}
+                      </td>
+                      <td className="px-6 py-4 text-right font-mono text-white/60">
+                        {item.solves ?? 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-
-          {/* rows */}
-          <div>
-            {tab === "individual" &&
-              (rows as IndividualRow[]).map((r) => (
-                <div
-                  key={r.userId}
-                  className="grid grid-cols-12 items-center gap-4 border-b border-white/5 px-8 py-6 hover:bg-white/[0.03] transition"
-                >
-                  <div className="col-span-2 flex items-center gap-3">
-                    <span className="text-xl">{rankIcon(r.rank)}</span>
-                    <span className="text-lg font-bold">{r.rank}</span>
-                  </div>
-
-                  <div className="col-span-4 text-lg font-semibold text-white">{r.username}</div>
-
-                  <div className="col-span-3">
-                    <span className="inline-flex items-center rounded-2xl border border-[#077c8a]/25 bg-[#077c8a]/10 px-4 py-2 text-sm font-semibold text-[#b8f4ff]">
-                      {r.team}
-                    </span>
-                  </div>
-
-                  <div className="col-span-2 text-right text-lg font-bold text-[#077c8a]">
-                    {r.points}
-                  </div>
-
-                  <div className="col-span-1 text-right text-lg font-semibold text-white/75">
-                    {r.solves}
-                  </div>
-                </div>
-              ))}
-
-            {tab === "team" &&
-              (rows as TeamRow[]).map((r) => (
-                <div
-                  key={r.teamId}
-                  className="grid grid-cols-12 items-center gap-4 border-b border-white/5 px-8 py-6 hover:bg-white/[0.03] transition"
-                >
-                  <div className="col-span-2 flex items-center gap-3">
-                    <span className="text-xl">{rankIcon(r.rank)}</span>
-                    <span className="text-lg font-bold">{r.rank}</span>
-                  </div>
-
-                  <div className="col-span-5 text-lg font-semibold text-white">{r.team}</div>
-
-                  <div className="col-span-2 text-right text-lg font-semibold text-white/75">
-                    {r.members}
-                  </div>
-
-                  <div className="col-span-2 text-right text-lg font-bold text-[#077c8a]">
-                    {r.points}
-                  </div>
-
-                  <div className="col-span-1 text-right text-lg font-semibold text-white/75">
-                    {r.solves}
-                  </div>
-                </div>
-              ))}
-
-            {rows.length === 0 && (
-              <div className="px-8 py-10 text-center text-white/60">No solves yet.</div>
-            )}
-          </div>
         </div>
-      </section>
+      </div>
     </main>
   );
 }

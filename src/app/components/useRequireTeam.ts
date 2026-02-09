@@ -2,43 +2,29 @@
 
 import { useEffect, useState } from "react";
 
-type MeResponse = {
-  user:
-    | null
-    | {
-        id: string;
-        username: string;
-        email: string;
-        avatar?: string;
-        teamId?: string;
-        teamName?: string;
-      };
-};
-
 export function useRequireTeam() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
-        const data: MeResponse = await res.json();
+        const res = await fetch("/api/teams/me", { cache: "no-store" });
 
-        // not logged in -> login
-        if (!data.user) {
+        if (res.status === 401) {
           window.location.href = "/login";
           return;
         }
 
-        // logged in but no team -> go team setup (NOT profile)
-        if (!data.user.teamId) {
+        const data = await res.json().catch(() => ({}));
+
+        if (!data?.hasTeam) {
           window.location.href = "/team";
           return;
         }
-
-        setLoading(false);
       } catch {
         window.location.href = "/login";
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);

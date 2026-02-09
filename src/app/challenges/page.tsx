@@ -4,113 +4,62 @@ import { useEffect, useMemo, useState } from "react";
 import EventNavbar from "../components/EventNavbar";
 import { useRequireTeam } from "../components/useRequireTeam";
 
-type FileItem = { fileId: string; filename: string; size: number; contentType: string };
-type Challenge = {
+type ChallengeRow = {
   _id: string;
   title: string;
-  description: string;
   points: number;
   category: string;
-  files: FileItem[];
-  solved: boolean;
+  solved?: boolean;
 };
-
-const categories = [
-  "Web Exploitation",
-  "Cryptography",
-  "Forensics",
-  "Pwn",
-  "Reverse Engineering",
-  "OSINT",
-  "Misc",
-  "Steganography",
-];
-
-function shortLabel(c: string) {
-  if (c === "Web Exploitation") return "Web";
-  if (c === "Reverse Engineering") return "Reverse";
-  return c;
-}
-
-function difficultyFromPoints(points: number) {
-  if (points <= 120) return "EASY";
-  if (points <= 220) return "MEDIUM";
-  return "HARD";
-}
-
-function diffBadgeClass(diff: "EASY" | "MEDIUM" | "HARD") {
-  if (diff === "EASY") return "bg-emerald-500/15 text-emerald-300 border-emerald-500/20";
-  if (diff === "MEDIUM") return "bg-yellow-500/15 text-yellow-300 border-yellow-500/20";
-  return "bg-red-500/15 text-red-300 border-red-500/20";
-}
 
 export default function ChallengesPage() {
   const { loading } = useRequireTeam();
+  const [list, setList] = useState<ChallengeRow[]>([]);
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
 
-  const [all, setAll] = useState<Challenge[]>([]);
-  const [active, setActive] = useState<string>("Web Exploitation");
-  const [err, setErr] = useState<string | null>(null);
-
-  // modal
-  const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<Challenge | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [flag, setFlag] = useState("");
-  const [submitMsg, setSubmitMsg] = useState<string | null>(null);
-  const [submitOk, setSubmitOk] = useState<boolean | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  async function loadChallenges() {
-    setErr(null);
-    const res = await fetch("/api/challenges", { cache: "no-store" });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setErr(data?.error || "Failed to load challenges");
-      return;
+  const active = useMemo(
+    () => (activeId ? list.find((c) => c._id === activeId) : null),
+    [activeId, list]
+  );
+
+  async function load() {
+    setErr("");
+    try {
+      const res = await fetch("/api/challenges", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Failed to load challenges");
+      setList(Array.isArray(data?.challenges) ? data.challenges : []);
+    } catch (e: any) {
+      setErr(e?.message || "Failed to load challenges");
     }
-    setAll(data.challenges || []);
   }
 
   useEffect(() => {
-    if (!loading) loadChallenges();
+    if (!loading) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
-  const filtered = useMemo(
-    () => all.filter((c) => c.category === active),
-    [all, active]
-  );
+  async function submit() {
+    setErr("");
+    setMsg("");
 
-  function openSolve(ch: Challenge) {
-    setSelected(ch);
-    setOpen(true);
-    setFlag("");
-    setSubmitMsg(null);
-    setSubmitOk(null);
-  }
-
-  function closeSolve() {
-    setOpen(false);
-    setSelected(null);
-    setFlag("");
-    setSubmitMsg(null);
-    setSubmitOk(null);
-  }
-
-  async function submitFlag() {
-    if (!selected) return;
-    const f = flag.trim();
-    if (!f) {
-      setSubmitOk(false);
-      setSubmitMsg("Flag is required");
+    if (!activeId) {
+      setErr("No challenge selected.");
       return;
     }
 
-    setSubmitting(true);
-    setSubmitMsg(null);
-    setSubmitOk(null);
+    const f = flag.trim();
+    if (!f) {
+      setErr("Enter a flag.");
+      return;
+    }
 
     try {
-      const res = await fetch(`/api/challenges/${selected._id}/submit`, {
+      const res = await fetch(`/api/challenges/${activeId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ flag: f }),
@@ -119,28 +68,25 @@ export default function ChallengesPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setSubmitOk(false);
-        setSubmitMsg(data?.error || "Submit failed");
+        setErr(data?.error || "Submit failed");
         return;
       }
 
-      if (data.correct) {
-        setSubmitOk(true);
-        setSubmitMsg("Correct ✅");
-
-        setAll((prev) =>
-          prev.map((x) => (x._id === selected._id ? { ...x, solved: true } : x))
-        );
-        setSelected((prev) => (prev ? { ...prev, solved: true } : prev));
+      if (data?.alreadySolved) {
+        setMsg("Already solved ✅");
       } else {
-        setSubmitOk(false);
-        setSubmitMsg("Incorrect flag");
+        setMsg(`Correct ✅ +${data?.points ?? ""}`);
       }
-    } catch {
-      setSubmitOk(false);
-      setSubmitMsg("Network error");
-    } finally {
-      setSubmitting(false);
+
+      // mark solved locally
+      setList((prev) =>
+        prev.map((c) => (c._id === activeId ? { ...c, solved: true } : c))
+      );
+
+      setFlag("");
+      setActiveId(null);
+    } catch (e: any) {
+      setErr(e?.message || "Submit failed");
     }
   }
 
@@ -150,193 +96,81 @@ export default function ChallengesPage() {
     <main className="min-h-screen bg-black text-white">
       <EventNavbar />
 
-      <section className="mx-auto max-w-6xl px-6 py-12">
+      <div className="mx-auto max-w-6xl px-6 py-10">
         <div className="text-center">
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-4xl font-bold tracking-tight">
             <span className="text-white">CTF </span>
             <span className="text-[#077c8a]">Challenges</span>
           </h1>
-          <p className="mt-2 text-white/70">Click a challenge to solve it.</p>
+          <p className="mt-3 text-white/60">Click a challenge to solve it.</p>
         </div>
 
-        {err && (
-          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-            {err}
-          </div>
-        )}
+        {err && <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-red-300">{err}</div>}
+        {msg && <div className="mt-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-200">{msg}</div>}
 
-        {/* Category Tabs */}
-        <div className="mt-8 flex flex-wrap gap-2">
-          {categories.map((c) => (
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {list.map((c) => (
             <button
-              key={c}
-              onClick={() => setActive(c)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                active === c
-                  ? "bg-[#077c8a] text-white"
-                  : "border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+              key={c._id}
+              onClick={() => setActiveId(c._id)} // ✅ always set real id
+              className={`rounded-2xl border p-5 text-left transition ${
+                c.solved
+                  ? "border-[#077c8a]/50 bg-[#077c8a]/10"
+                  : "border-white/10 bg-white/[0.04] hover:border-[#077c8a]/40 hover:bg-white/[0.06]"
               }`}
             >
-              {shortLabel(c)}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-base font-semibold">{c.title}</div>
+                  <div className="mt-1 text-xs text-white/50">{c.category}</div>
+                </div>
+                <div className="shrink-0 rounded-xl bg-white/5 px-3 py-1 text-sm font-bold text-[#077c8a] ring-1 ring-white/10">
+                  {c.points}
+                </div>
+              </div>
             </button>
           ))}
         </div>
+      </div>
 
-        {/* ✅ Card UI like screenshot */}
-        <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((ch) => {
-            const diff = difficultyFromPoints(ch.points) as "EASY" | "MEDIUM" | "HARD";
-
-            return (
-              <button
-                key={ch._id}
-                onClick={() => openSolve(ch)}
-                className={[
-                  "group relative w-full overflow-hidden rounded-3xl border text-left transition",
-                  "bg-white/[0.04] border-white/10 hover:bg-white/[0.06]",
-                  "shadow-[0_0_0_1px_rgba(255,255,255,0.04)]",
-                  "hover:border-[#1493a0]/45 hover:shadow-[0_0_0_1px_rgba(20,147,160,0.20)]",
-                  ch.solved
-                    ? "border-[#077c8a]/50 bg-[#077c8a]/10 shadow-[0_0_0_1px_rgba(7,124,138,0.20)]"
-                    : "",
-                ].join(" ")}
-              >
-                <div className="p-7">
-                  {/* Top row: difficulty + points */}
-                  <div className="flex items-start justify-between">
-                    <span
-                      className={[
-                        "inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold tracking-wide",
-                        diffBadgeClass(diff),
-                      ].join(" ")}
-                    >
-                      {diff}
-                    </span>
-
-                    <span className="text-sm font-semibold text-[#077c8a]">
-                      {ch.points} pts
-                    </span>
-                  </div>
-
-                  {/* Title */}
-                  <div className="mt-6 text-2xl font-bold text-white">
-                    {ch.title}
-                  </div>
-
-                  {/* Category */}
-                  <div className="mt-2 text-base text-white/65">{ch.category}</div>
-
-                  {/* Solved (bottom right like screenshot vibe) */}
-                  <div className="mt-10 flex justify-end">
-                    {ch.solved ? (
-                      <span className="text-sm font-bold tracking-widest text-emerald-400">
-                        SOLVED
-                      </span>
-                    ) : (
-                      <span className="text-sm font-bold tracking-widest text-white/20">
-                        {/* keep spacing consistent */}
-                        &nbsp;
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-
-          {filtered.length === 0 && !err && (
-            <div className="text-white/60">No challenges in this category yet.</div>
-          )}
-        </div>
-      </section>
-
-      {/* Solve Modal */}
-      {open && selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
-          onClick={closeSolve}
-        >
-          <div
-            className="w-full max-w-xl rounded-3xl border border-white/10 bg-black/90 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* Modal */}
+      {active && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#0b0b0b] p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xl font-bold">
-                  {selected.title}
-                  {selected.solved && (
-                    <span className="ml-2 rounded-lg border border-[#077c8a]/40 bg-[#077c8a]/15 px-2 py-0.5 text-xs font-semibold text-white/90">
-                      Solved
-                    </span>
-                  )}
-                </div>
-                <div className="mt-1 text-sm text-white/60">
-                  {selected.category} • {selected.points} pts
-                </div>
+              <div className="min-w-0">
+                <div className="text-lg font-semibold">{active.title}</div>
+                <div className="mt-1 text-sm text-white/60">{active.category}</div>
               </div>
-
               <button
-                onClick={closeSolve}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                onClick={() => {
+                  setActiveId(null);
+                  setFlag("");
+                  setErr("");
+                }}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10"
               >
                 Close
               </button>
             </div>
 
-            <p className="mt-4 whitespace-pre-line text-sm leading-7 text-white/70">
-              {selected.description}
-            </p>
+            <div className="mt-5">
+              <label className="text-sm text-white/70">Submit flag</label>
+              <input
+                value={flag}
+                onChange={(e) => setFlag(e.target.value)}
+                placeholder="UITCTF{...}"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-[#077c8a]/60"
+              />
+            </div>
 
-            {selected.files?.length > 0 && (
-              <div className="mt-5">
-                <div className="text-sm font-semibold text-white/80">Files</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selected.files.map((f) => (
-                    <a
-                      key={f.fileId}
-                      href={`/api/challenges/files/${f.fileId}`}
-                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 transition"
-                    >
-                      {f.filename}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Flag submit */}
-            <div className="mt-6">
-              <label className="mb-2 block text-sm font-semibold text-white/80">
-                Submit Flag
-              </label>
-
-              <div className="flex gap-2">
-                <input
-                  value={flag}
-                  onChange={(e) => setFlag(e.target.value)}
-                  placeholder="UITCTF{...}"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white outline-none focus:border-[#1493a0]/70"
-                />
-                <button
-                  disabled={submitting || selected.solved}
-                  onClick={submitFlag}
-                  className="shrink-0 rounded-xl bg-[#077c8a] px-4 py-3 text-sm font-semibold text-white hover:opacity-90 transition disabled:opacity-60"
-                >
-                  {selected.solved ? "Solved" : submitting ? "Checking..." : "Submit"}
-                </button>
-              </div>
-
-              {submitMsg && (
-                <div
-                  className={`mt-3 rounded-2xl border p-3 text-sm ${
-                    submitOk
-                      ? "border-[#077c8a]/30 bg-[#077c8a]/10 text-white/90"
-                      : "border-red-500/30 bg-red-500/10 text-red-200"
-                  }`}
-                >
-                  {submitMsg}
-                </div>
-              )}
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                onClick={submit}
+                className="rounded-xl bg-[#077c8a] px-5 py-3 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Submit
+              </button>
             </div>
           </div>
         </div>

@@ -76,6 +76,8 @@ export default function TeamSetupPage() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return setErr(data?.error || "Create team failed");
 
+    window.location.href = "/challenges";
+
     setMsg("Team created ✅");
     setInviteOut(data.inviteToken || "");
     // refresh → should redirect to /event because user now has team
@@ -98,6 +100,8 @@ export default function TeamSetupPage() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return setErr(data?.error || "Join failed");
 
+    window.location.href = "/challenges";
+    
     setMsg("Joined team ✅");
     setTimeout(() => (window.location.href = "/event"), 600);
   }

@@ -1,9 +1,11 @@
-import mongoose, { Schema, models, model } from "mongoose";
+import { Schema, models, model } from "mongoose";
 
 export type IEvent = {
   name: string;
   startsAt: Date;
   endsAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 
 const EventSchema = new Schema<IEvent>(
