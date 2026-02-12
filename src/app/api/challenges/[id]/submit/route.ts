@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
 import { connectMongo } from "@/lib/mongodb";
-import { getSession } from "@/lib/session";
+import { getSessionUser } from "@/lib/auth";
 import { Event } from "@/models/Event";
 import { Team } from "@/models/Team";
 import { Challenge } from "@/models/Challenge";
@@ -14,9 +14,9 @@ import { Solve } from "@/models/Solve";
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   await connectMongo();
 
-  const session = await getSession(req);
-  if (!session?.id) {
-    return NextResponse.json({ error: "Not logged in." }, { status: 401 });
+  const session = await getSessionUser();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await ctx.params;
@@ -27,73 +27,77 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const body = await req.json().catch(() => ({}));
   const flag = String(body.flag ?? "").trim();
+  if (!flag) return NextResponse.json({ error: "Flag required." }, { status: 400 });
 
-  if (!flag) {
-    return NextResponse.json({ error: "Flag is required." }, { status: 400 });
-  }
-
+  // ✅ active event
   const now = new Date();
-
   const activeEvent = await Event.findOne({
     startsAt: { $lte: now },
     endsAt: { $gte: now },
   }).select("_id");
 
   if (!activeEvent) {
-    return NextResponse.json({ error: "No active event right now." }, { status: 403 });
+    return NextResponse.json({ error: "No active event right now." }, { status: 409 });
   }
 
-  const userId = new mongoose.Types.ObjectId(String(session.id));
-
-  // ✅ must have a team for THIS active event
+  // ✅ team in this event
   const team = await Team.findOne({
     eventId: activeEvent._id,
-    members: userId,
+    members: new mongoose.Types.ObjectId(session.id),
   }).select("_id");
 
   if (!team) {
     return NextResponse.json({ error: "Create or join a team first." }, { status: 403 });
   }
 
-  // ✅ challenge must exist and belong to active event
-  const ch = await Challenge.findOne({ _id: id, eventId: activeEvent._id }).select(
-    "_id points flagHash startsAt endsAt eventId"
-  );
+  // ✅ challenge belongs to this event
+  const ch = await Challenge.findOne({
+    _id: new mongoose.Types.ObjectId(id),
+    eventId: activeEvent._id,
+  }).select("_id points flagHash startsAt endsAt eventId");
 
   if (!ch) {
     return NextResponse.json({ error: "Challenge not found." }, { status: 404 });
   }
 
-  // ✅ scheduled window check
-  if (now < ch.startsAt || now > ch.endsAt) {
-    return NextResponse.json({ error: "Challenge is not active." }, { status: 403 });
+  // ✅ schedule window check
+  if (now < new Date(ch.startsAt) || now > new Date(ch.endsAt)) {
+    return NextResponse.json({ error: "Challenge not active." }, { status: 403 });
   }
 
-  // ✅ already solved? (don’t award twice)
-  const existing = await Solve.findOne({
-    userId,
+  // ✅ TEAM already solved?
+  const already = await Solve.findOne({
     teamId: team._id,
     challengeId: ch._id,
     eventId: ch.eventId,
   }).select("_id");
 
-  if (existing) {
+  if (already) {
     return NextResponse.json({ ok: true, alreadySolved: true });
   }
 
-  // ✅ correct compare (trim already done)
-  const ok = await bcrypt.compare(flag, ch.flagHash);
+  // ✅ compare submitted flag with stored hash
+  const ok = await bcrypt.compare(flag, String(ch.flagHash));
   if (!ok) {
     return NextResponse.json({ error: "Incorrect flag." }, { status: 400 });
   }
 
-  await Solve.create({
-    userId,
-    teamId: team._id,
-    challengeId: ch._id,
-    eventId: ch.eventId,
-    points: ch.points,
-  });
+  // ✅ create solve (unique index prevents duplicates)
+  try {
+    await Solve.create({
+      userId: new mongoose.Types.ObjectId(session.id),
+      teamId: team._id,
+      challengeId: ch._id,
+      eventId: ch.eventId,
+      points: ch.points,
+    });
+  } catch (e: any) {
+    // race: two members submit at same time
+    if (String(e?.code) === "11000") {
+      return NextResponse.json({ ok: true, alreadySolved: true });
+    }
+    return NextResponse.json({ error: "Failed to save solve." }, { status: 500 });
+  }
 
-  return NextResponse.json({ ok: true, points: ch.points });
+  return NextResponse.json({ ok: true, solved: true, points: ch.points });
 }

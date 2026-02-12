@@ -1,35 +1,44 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { connectMongo } from "@/lib/mongodb";
+import { Event } from "@/models/Event";
 import { Team } from "@/models/Team";
-import { requireUser } from "@/lib/requireUser";
 
 export async function GET() {
   await connectMongo();
-  const teams = await Team.find().select("_id name ownerId members createdAt").sort({ createdAt: -1 }).limit(200);
-  return NextResponse.json({ teams });
-}
 
-export async function POST(req: Request) {
-  const { session, denied } = await requireUser();
-  if (denied) return denied;
+  // ✅ Only show teams for the currently active event (time window)
+  const now = new Date();
+  const activeEvent = await Event.findOne({
+    startsAt: { $lte: now },
+    endsAt: { $gte: now },
+  }).select("_id name startsAt endsAt");
 
-  const body = await req.json();
-  const name = String(body.name ?? "").trim();
-
-  if (!name || name.length < 3 || name.length > 24) {
-    return NextResponse.json({ error: "Team name must be 3–24 characters." }, { status: 400 });
+  // ✅ No active event => no event teams should show
+  if (!activeEvent) {
+    return NextResponse.json({
+      event: null,
+      teams: [],
+    });
   }
 
-  await connectMongo();
+  const teams = await Team.find({ eventId: activeEvent._id })
+    .sort({ createdAt: -1 })
+    .select("_id name members leaderId");
 
-  const existing = await Team.findOne({ name }).select("_id");
-  if (existing) return NextResponse.json({ error: "Team name already exists." }, { status: 409 });
-
-  const team = await Team.create({
-    name,
-    ownerId: session!.id,
-    members: [session!.id],
+  return NextResponse.json({
+    event: {
+      _id: activeEvent._id.toString(),
+      name: activeEvent.name,
+      startsAt: activeEvent.startsAt,
+      endsAt: activeEvent.endsAt,
+    },
+    teams: teams.map((t) => ({
+      _id: t._id.toString(),
+      name: t.name,
+      membersCount: Array.isArray(t.members) ? t.members.length : 0,
+      leaderId: t.leaderId?.toString?.() || null,
+    })),
   });
-
-  return NextResponse.json({ team }, { status: 201 });
 }

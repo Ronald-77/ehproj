@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import EventNavbar from "../components/EventNavbar";
+import Navbar from "../components/Navbar";
 
 type PracticeChallenge = {
   _id: string;
@@ -95,7 +95,7 @@ export default function PracticePage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <EventNavbar />
+      <Navbar/>
 
       <section className="mx-auto max-w-6xl px-6 py-10">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
