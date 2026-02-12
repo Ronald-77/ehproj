@@ -1,5 +1,59 @@
 @import "tailwindcss";
 
+@keyframes wave {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes text-wave {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15%);
+  }
+}
+
+@keyframes flag-wave {
+  0% {
+    transform: rotate(0deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-8deg) translateY(-2px);
+  }
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+}
+
+/* Utility for flag waving effect */
+.animate-flag-wave {
+  animation: flag-wave 1.8s ease-in-out infinite;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+
+.animate-ripple {
+  animation: ripple 1.8s ease-out infinite;
+}
+@theme {
+  --animate-wave: wave 4s linear infinite;
+  --animate-text-wave: text-wave 1.5s ease-in-out infinite;
+  --animate-flag-wave: flag-wave 1.8s ease-in-out infinite;
+}
 
 html,
 body {
