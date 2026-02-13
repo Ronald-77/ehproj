@@ -127,10 +127,10 @@ export default function PracticePage() {
               key={x}
               onClick={() => setCat(x)}
               className={[
-                "rounded-2xl border px-4 py-2 text-sm font-semibold transition",
+                "rounded-2xl border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#077c8a]/40",
                 x === cat
-                  ? "border-white/10 bg-white/10 text-white"
-                  : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06] hover:text-white",
+                  ? "border-[#077c8a]/50 bg-[#077c8a]/20 text-white shadow-md shadow-[#077c8a]/20"
+                  : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06] hover:text-white hover:border-white/20",
               ].join(" ")}
             >
               {x}
