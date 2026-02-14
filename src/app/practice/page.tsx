@@ -40,6 +40,10 @@ export default function PracticePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hints, setHints] = useState<string[]>([]);
+  const [hintBusy, setHintBusy] = useState(false);
+  const [aiHints, setAiHints] = useState<string[]>([]);
+  const [aiBusy, setAiBusy] = useState(false);
 
   async function load() {
     setErr(null);
@@ -86,8 +90,9 @@ export default function PracticePage() {
       } else {
         setErr("Incorrect flag");
       }
-    } catch (e: any) {
-      setErr(e?.message || "Submit failed");
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Submit failed";
+      setErr(msg);
     } finally {
       setBusy(false);
     }
@@ -150,6 +155,7 @@ export default function PracticePage() {
                   setFlag("");
                   setMsg(null);
                   setErr(null);
+                  setHints([]);
                 }}
                 className={[
                   "group relative rounded-3xl border bg-white/[0.03] p-7 text-left shadow-[0_0_0_1px_rgba(255,255,255,0.04)] transition",
@@ -220,6 +226,94 @@ export default function PracticePage() {
                 {err}
               </div>
             )}
+
+            {hints.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="text-sm font-semibold text-white/80">Hints</div>
+                <ul className="mt-2 space-y-2">
+                  {hints.map((h, i) => (
+                    <li key={i} className="text-sm text-white/75">
+                      {i + 1}. {h}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {aiHints.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="text-sm font-semibold text-white/80">AI Hints</div>
+                <ul className="mt-2 space-y-2">
+                  {aiHints.map((h, i) => (
+                    <li key={i} className="text-sm text-white/75">
+                      {i + 1}. {h}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                disabled={hintBusy || hints.length >= 3}
+                onClick={async () => {
+                  if (!open) return;
+                  setHintBusy(true);
+                  setErr(null);
+                  setMsg(null);
+                  try {
+                    const res = await fetch(`/api/practice/challenges/${open._id}/hint`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tier: hints.length, provider: "rule" }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setErr(data?.error || "Failed to get hint");
+                    } else if (data?.done) {
+                      setMsg("No more hints");
+                    } else if (data?.text) {
+                      setHints((prev) => [...prev, String(data.text)]);
+                    }
+                  } finally {
+                    setHintBusy(false);
+                  }
+                }}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 disabled:opacity-50"
+              >
+                {hintBusy ? "Loading…" : hints.length === 0 ? "Request Hint" : "Next Hint"}
+              </button>
+
+              <button
+                disabled={aiBusy || aiHints.length >= 3}
+                onClick={async () => {
+                  if (!open) return;
+                  setAiBusy(true);
+                  setErr(null);
+                  setMsg(null);
+                  try {
+                    const res = await fetch(`/api/practice/challenges/${open._id}/hint`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tier: aiHints.length, provider: "ai" }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setErr(data?.error || "Failed to get AI hint");
+                    } else if (data?.done) {
+                      setMsg("No more AI hints");
+                    } else if (data?.text) {
+                      setAiHints((prev) => [...prev, String(data.text)]);
+                    }
+                  } finally {
+                    setAiBusy(false);
+                  }
+                }}
+                className="rounded-2xl bg-[#077c8a] px-4 py-3 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {aiBusy ? "Asking AI…" : aiHints.length === 0 ? "Ask AI Hint" : "Next AI Hint"}
+              </button>
+            </div>
 
             <button
               disabled={busy}
