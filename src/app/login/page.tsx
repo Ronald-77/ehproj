@@ -39,7 +39,7 @@ export default function LoginPage() {
         return;
       }
 
-      setMsg("Login successful ✅");
+      setMsg("Login successful");
 
       // ✅ if middleware redirected here, it sets ?next=/event (or other page)
       const next = new URLSearchParams(window.location.search).get("next");

@@ -81,7 +81,7 @@ export default function PracticePage() {
       if (!res.ok) throw new Error(data?.error || "Submit failed");
 
       if (data.correct) {
-        setMsg(data.alreadySolved ? "Already solved ✅" : "Correct flag ✅ (Practice)");
+        setMsg(data.alreadySolved ? "Already solved" : "Correct flag (Practice)");
         setItems((prev) => prev.map((x) => (x._id === open._id ? { ...x, solved: true } : x)));
       } else {
         setErr("Incorrect flag");

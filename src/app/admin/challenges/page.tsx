@@ -143,7 +143,7 @@ export default function AdminChallengesPage() {
     setMsg("");
     localStorage.setItem("ADMIN_TOKEN", token.trim());
     setLoadedToken(token.trim());
-    setMsg("Loaded ✅");
+    setMsg("Loaded ");
   }
 
   async function onCreateChallenge() {
@@ -186,7 +186,7 @@ export default function AdminChallengesPage() {
     setDescription("");
     setFlag("");
     setCreateFiles([]);
-    setMsg("Challenge created ✅");
+    setMsg("Challenge created");
     await loadAll();
   }
 
@@ -228,7 +228,7 @@ export default function AdminChallengesPage() {
     }
 
     setEditing(null);
-    setMsg("Saved ✅");
+    setMsg("Saved");
     await loadAll();
   }
 
@@ -237,7 +237,7 @@ export default function AdminChallengesPage() {
     setErr("");
     setMsg("");
     await api(`/api/admin/challenges/${id}`, { method: "DELETE" });
-    setMsg("Deleted ✅");
+    setMsg("Deleted");
     await loadAll();
   }
 
@@ -246,7 +246,7 @@ export default function AdminChallengesPage() {
     setErr("");
     setMsg("");
     await api(`/api/admin/challenges/${challengeId}/files/${fileId}`, { method: "DELETE" });
-    setMsg("File deleted ✅");
+    setMsg("File deleted");
     await loadAll();
   }
 

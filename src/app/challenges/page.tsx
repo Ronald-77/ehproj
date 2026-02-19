@@ -154,7 +154,7 @@ export default function ChallengesPage() {
       if (!res.ok) {
         setMsg(data?.error || "Incorrect flag.");
       } else {
-        setMsg("✅ Correct! Solved.");
+        setMsg("Correct! Solved.");
         setSolvedIds((prev) => new Set(prev).add(detail._id));
 
         // also update list item (for immediate badge)

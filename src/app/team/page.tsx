@@ -78,7 +78,7 @@ export default function TeamSetupPage() {
 
     window.location.href = "/challenges";
 
-    setMsg("Team created ✅");
+    setMsg("Team created");
     setInviteOut(data.inviteToken || "");
     // refresh → should redirect to /event because user now has team
     setTimeout(() => loadMe(), 600);
@@ -102,7 +102,7 @@ export default function TeamSetupPage() {
 
     window.location.href = "/challenges";
     
-    setMsg("Joined team ✅");
+    setMsg("Joined team");
     setTimeout(() => (window.location.href = "/event"), 600);
   }
 
@@ -197,7 +197,7 @@ export default function TeamSetupPage() {
                   <button
                     onClick={async () => {
                       await navigator.clipboard.writeText(inviteOut);
-                      setMsg("Token copied ✅");
+                      setMsg("Token copied");
                     }}
                     className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
                   >
