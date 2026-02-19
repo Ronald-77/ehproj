@@ -73,9 +73,6 @@ export default function EventNavbar() {
           <Link href="/scoreboard" className="text-white/75 hover:text-white transition">
             Scoreboard
           </Link>
-          <Link href="/notifications" className="text-white/75 hover:text-white transition">
-            Notification
-          </Link>
         </nav>
 
         {/* Right */}
